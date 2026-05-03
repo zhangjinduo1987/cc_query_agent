@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Env
+.env
+
+# Data
+data/demo.db
+data/*.db
+
+# Temp
+/tmp/
+*.log
+mcp_config.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
