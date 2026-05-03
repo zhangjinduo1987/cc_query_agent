@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>问数分析智能体</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117;
+      --bg2: #1a1d27;
+      --bg3: #22263a;
+      --border: #2e3250;
+      --accent: #6c63ff;
+      --accent2: #a78bfa;
+      --green: #22d3a0;
+      --orange: #f59e0b;
+      --red: #f87171;
+      --text: #e2e8f0;
+      --text2: #94a3b8;
+      --text3: #64748b;
+      --radius: 10px;
+      --font: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; }
+    .logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .badge { font-size: 11px; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 2px 8px; border-radius: 20px; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    #statusDot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); transition: background .3s; }
+    #statusDot.ok { background: var(--green); }
+    #statusDot.err { background: var(--red); }
+    #statusText { font-size: 12px; color: var(--text2); }
+
+    /* ── Layout ── */
+    .container { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 56px); }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 280px; min-width: 220px;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-header { padding: 16px; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid var(--border); }
+    .sidebar-body { flex: 1; overflow-y: auto; padding: 8px; }
+
+    /* Quick examples */
+    .section-label { font-size: 11px; color: var(--text3); padding: 8px 8px 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+    .quick-item {
+      padding: 9px 12px; border-radius: 7px; cursor: pointer;
+      font-size: 13px; color: var(--text2); line-height: 1.4;
+      transition: background .15s, color .15s;
+      margin-bottom: 2px;
+    }
+    .quick-item:hover { background: var(--bg3); color: var(--text); }
+    .quick-item .qi-icon { margin-right: 6px; }
+
+    /* Schema panel */
+    .schema-panel { border-top: 1px solid var(--border); }
+    .schema-toggle { padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+    .schema-toggle:hover { color: var(--text); }
+    .schema-content { padding: 0 12px 12px; display: none; }
+    .schema-content.open { display: block; }
+    .table-card { background: var(--bg3); border-radius: 7px; padding: 10px; margin-bottom: 8px; }
+    .table-name { font-size: 12px; font-weight: 700; color: var(--accent2); margin-bottom: 4px; }
+    .table-cols { font-size: 11px; color: var(--text3); line-height: 1.6; }
+
+    /* History */
+    .history-item {
+      padding: 8px 10px; border-radius: 7px; cursor: pointer;
+      margin-bottom: 3px; transition: background .15s;
+    }
+    .history-item:hover { background: var(--bg3); }
+    .history-item .hi-query { font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-item .hi-meta { font-size: 10px; color: var(--text3); margin-top: 2px; }
+    .hi-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+    .hi-dot.success { background: var(--green); }
+    .hi-dot.fail { background: var(--red); }
+
+    /* ── Main ── */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Chat area */
+    .chat-area { flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; }
+
+    /* Welcome */
+    .welcome {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      flex: 1; gap: 16px; text-align: center; padding: 40px 20px;
+    }
+    .welcome-icon { font-size: 56px; margin-bottom: 4px; }
+    .welcome h2 { font-size: 24px; font-weight: 700; }
+    .welcome p { font-size: 14px; color: var(--text2); max-width: 480px; line-height: 1.7; }
+    .welcome-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; max-width: 500px; }
+    .wcard { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; cursor: pointer; text-align: left; transition: border-color .2s, background .2s; }
+    .wcard:hover { border-color: var(--accent); background: var(--bg3); }
+    .wcard-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .wcard-desc { font-size: 12px; color: var(--text2); line-height: 1.5; }
+
+    /* Query bubble */
+    .msg-user { display: flex; justify-content: flex-end; }
+    .msg-user .bubble { background: var(--accent); color: #fff; padding: 12px 18px; border-radius: 18px 18px 4px 18px; max-width: 70%; font-size: 14px; line-height: 1.6; }
+
+    /* Thinking stream */
+    .msg-agent { display: flex; gap: 12px; align-items: flex-start; }
+    .agent-avatar { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+    .agent-body { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+
+    /* Step trace */
+    .trace-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .trace-header { padding: 8px 14px; font-size: 12px; font-weight: 600; color: var(--text2); display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+    .trace-header:hover { background: var(--bg3); }
+    .trace-body { padding: 10px 14px; max-height: 300px; overflow-y: auto; }
+    .trace-line { font-size: 12px; color: var(--text3); line-height: 1.7; display: flex; gap: 8px; }
+    .trace-line .tl-icon { flex-shrink: 0; width: 16px; text-align: center; }
+    .trace-line.thinking .tl-icon { color: var(--accent2); }
+    .trace-line.tool_call .tl-icon { color: var(--orange); }
+    .trace-line.tool_result .tl-icon { color: var(--green); }
+    .trace-line.error .tl-icon { color: var(--red); }
+
+    /* Tool badge */
+    .tool-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; font-size: 11px; color: var(--orange); font-family: monospace; }
+
+    /* Report */
+    .report-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .report-header { padding: 10px 16px; background: var(--bg3); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .report-title { font-size: 13px; font-weight: 600; color: var(--green); display: flex; align-items: center; gap: 6px; }
+    .report-meta { font-size: 11px; color: var(--text3); }
+    .report-content { padding: 20px 24px; font-size: 14px; line-height: 1.8; color: var(--text); }
+
+    /* Markdown styles inside report */
+    .report-content h2 { font-size: 16px; margin: 16px 0 8px; color: var(--accent2); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    .report-content h3 { font-size: 14px; margin: 12px 0 6px; color: var(--text); }
+    .report-content p { margin-bottom: 10px; }
+    .report-content ul, .report-content ol { padding-left: 20px; margin-bottom: 10px; }
+    .report-content li { margin-bottom: 4px; }
+    .report-content table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+    .report-content th { background: var(--bg3); color: var(--text2); font-weight: 600; padding: 8px 12px; text-align: left; border: 1px solid var(--border); }
+    .report-content td { padding: 7px 12px; border: 1px solid var(--border); color: var(--text); }
+    .report-content tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+    .report-content code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 12px; font-family: monospace; color: var(--accent2); }
+    .report-content pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
+    .report-content pre code { background: none; border: none; padding: 0; font-size: 13px; color: var(--green); }
+    .report-content strong { color: #fff; font-weight: 600; }
+    .report-content blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text2); margin: 10px 0; }
+
+    /* Spinner */
+    .spinner-wrap { display: flex; align-items: center; gap: 10px; padding: 12px 0; }
+    .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-text { font-size: 13px; color: var(--text2); }
+
+    /* Copy button */
+    .btn-copy { padding: 4px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); font-size: 11px; cursor: pointer; transition: border-color .2s; }
+    .btn-copy:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Input bar ── */
+    .input-bar {
+      padding: 16px 24px 20px;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+    }
+    .input-wrap {
+      max-width: 860px; margin: 0 auto;
+      display: flex; gap: 10px; align-items: flex-end;
+    }
+    .input-box {
+      flex: 1; background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px 16px;
+      color: var(--text); font-size: 14px; font-family: var(--font);
+      resize: none; outline: none; line-height: 1.6; min-height: 48px; max-height: 160px;
+      transition: border-color .2s;
+    }
+    .input-box:focus { border-color: var(--accent); }
+    .input-box::placeholder { color: var(--text3); }
+    .send-btn {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: var(--accent); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0; transition: background .2s, opacity .2s;
+    }
+    .send-btn:hover { background: var(--accent2); }
+    .send-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .input-hint { max-width: 860px; margin: 6px auto 0; font-size: 11px; color: var(--text3); padding: 0 4px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔍</div>
+    问数分析智能体
+    <span class="badge">Claude Code Agent</span>
+  </div>
+  <div class="header-right">
+    <div id="statusDot"></div>
+    <span id="statusText">检查中...</span>
+  </div>
+</header>
+
+<!-- Layout -->
+<div class="container">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">快捷示例</div>
+    <div class="sidebar-body">
+      <div class="section-label">📊 趋势分析</div>
+      <div class="quick-item" onclick="fillQuery('分析最近30天的订单量趋势，标出异常波动点')">
+        <span class="qi-icon">📈</span>近30天订单趋势
+      </div>
+      <div class="quick-item" onclick="fillQuery('统计每天的GMV和订单量，计算环比增长率')">
+        <span class="qi-icon">💰</span>每日GMV环比
+      </div>
+
+      <div class="section-label">👥 用户分析</div>
+      <div class="quick-item" onclick="fillQuery('分析用户年龄段分布，哪个年龄段消费能力最强')">
+        <span class="qi-icon">🎂</span>用户年龄分布
+      </div>
+      <div class="quick-item" onclick="fillQuery('找出高价值用户(购买次数>3且总金额>1000)的特征')">
+        <span class="qi-icon">⭐</span>高价值用户画像
+      </div>
+
+      <div class="section-label">🛍️ 商品分析</div>
+      <div class="quick-item" onclick="fillQuery('各商品类目的订单量和销售额对比，找出TOP5')">
+        <span class="qi-icon">🏆</span>类目销售TOP5
+      </div>
+      <div class="quick-item" onclick="fillQuery('分析不同城市的销售额分布情况')">
+        <span class="qi-icon">🗺️</span>城市销售分布
+      </div>
+
+      <div class="section-label">🕐 历史记录</div>
+      <div id="historyList"></div>
+    </div>
+
+    <!-- Schema panel -->
+    <div class="schema-panel">
+      <div class="schema-toggle" onclick="toggleSchema()">
+        <span>📋 数据表结构</span>
+        <span id="schemaArrow">▶</span>
+      </div>
+      <div class="schema-content" id="schemaContent">
+        <div id="schemaTables" style="font-size:12px;color:var(--text3)">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="chat-area" id="chatArea">
+      <!-- Welcome -->
+      <div class="welcome" id="welcomeScreen">
+        <div class="welcome-icon">🤖</div>
+        <h2>你好，我是问数智能体</h2>
+        <p>基于 Claude Code 驱动，我能理解你的自然语言问题，<br/>自动完成 <strong>数据探索 → SQL取数 → Python分析 → 生成报告</strong> 全流程。</p>
+        <div class="welcome-cards">
+          <div class="wcard" onclick="fillQuery('分析最近30天的订单量趋势，找出异常波动')">
+            <div class="wcard-title">📈 趋势分析</div>
+            <div class="wcard-desc">最近30天订单量趋势与异常波动</div>
+          </div>
+          <div class="wcard" onclick="fillQuery('对比各城市的销售额，哪个城市增长最快')">
+            <div class="wcard-title">🗺️ 城市对比</div>
+            <div class="wcard-desc">各城市销售额对比与增长分析</div>
+          </div>
+          <div class="wcard" onclick="fillQuery('找出高价值用户的购买行为特征')">
+            <div class="wcard-title">👤 用户画像</div>
+            <div class="wcard-desc">高价值用户特征识别与分析</div>
+          </div>
+          <div class="wcard" onclick="fillQuery('统计各商品类目销售TOP5及转化情况')">
+            <div class="wcard-title">🏆 商品排行</div>
+            <div class="wcard-desc">商品类目销售排行与转化率</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input bar -->
+    <div class="input-bar">
+      <div class="input-wrap">
+        <textarea
+          id="queryInput"
+          class="input-box"
+          placeholder="输入你的数据分析问题，例如：分析最近30天订单趋势..."
+          rows="1"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendQuery()" title="发送 (Enter)">➤</button>
+      </div>
+      <div class="input-hint">Enter 发送 · Shift+Enter 换行 · Claude Code 驱动，实时流式分析</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Config ──────────────────────────────────────────────────────
+  const API_BASE = window.location.origin + '/api';
+  const WS_BASE  = (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/api/ws/analyze';
+
+  let ws = null;
+  let isAnalyzing = false;
+  let currentSessionId = null;
+  let currentTraceEl = null;
+  let currentTraceBody = null;
+
+  // ── Init ──────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    checkHealth();
+    loadSchema();
+    loadHistory();
+    setInterval(checkHealth, 30000);
+  });
+
+  async function checkHealth() {
+    try {
+      const r = await fetch(API_BASE + '/health');
+      const d = await r.json();
+      const dot = document.getElementById('statusDot');
+      const txt = document.getElementById('statusText');
+      if (d.status === 'ok') {
+        dot.className = 'ok';
+        txt.textContent = d.db_connected ? 'DB已连接' : '服务正常';
+      } else {
+        dot.className = 'err'; txt.textContent = '服务异常';
+      }
+    } catch {
+      document.getElementById('statusDot').className = 'err';
+      document.getElementById('statusText').textContent = '无法连接';
+    }
+  }
+
+  async function loadSchema() {
+    try {
+      const r = await fetch(API_BASE + '/schema');
+      const d = await r.json();
+      renderSchema(d.tables || {});
+    } catch { document.getElementById('schemaTables').textContent = '加载失败'; }
+  }
+
+  function renderSchema(tables) {
+    const el = document.getElementById('schemaTables');
+    if (!Object.keys(tables).length) { el.textContent = '暂无表信息'; return; }
+    el.innerHTML = Object.entries(tables).map(([name, info]) => `
+      <div class="table-card">
+        <div class="table-name">📋 ${name} <span style="color:var(--text3);font-size:10px;font-weight:400">(${info.row_count} 行)</span></div>
+        <div class="table-cols">${(info.columns||[]).map(c => `<span style="color:var(--accent2)">${c.name}</span><span style="color:var(--text3)">:${c.type}</span>`).join(' · ')}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadHistory() {
+    try {
+      const r = await fetch(API_BASE + '/history');
+      const d = await r.json();
+      renderHistory(d.history || []);
+    } catch {}
+  }
+
+  function renderHistory(items) {
+    const el = document.getElementById('historyList');
+    if (!items.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px">暂无记录</div>'; return; }
+    el.innerHTML = items.slice(0,10).map(h => `
+      <div class="history-item" onclick="loadSession('${h.session_id}')">
+        <div class="hi-query">
+          <span class="hi-dot ${h.success ? 'success' : 'fail'}"></span>${h.query}
+        </div>
+        <div class="hi-meta">${h.session_id} · ${h.created_at ? h.created_at.slice(0,16) : ''}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadSession(sid) {
+    try {
+      const r = await fetch(`${API_BASE}/session/${sid}`);
+      const d = await r.json();
+      hideWelcome();
+      appendUserBubble(d.query);
+      appendReport(d.report, d.cost_usd, d.num_turns, d.tool_calls?.length || 0, d.session_id);
+    } catch(e) { alert('加载失败: ' + e.message); }
+  }
+
+  function toggleSchema() {
+    const c = document.getElementById('schemaContent');
+    const a = document.getElementById('schemaArrow');
+    const open = c.classList.toggle('open');
+    a.textContent = open ? '▼' : '▶';
+  }
+
+  // ── Query ────────────────────────────────────────────────────
+  function fillQuery(text) {
+    const inp = document.getElementById('queryInput');
+    inp.value = text;
+    autoResize(inp);
+    inp.focus();
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuery(); }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  }
+
+  async function sendQuery() {
+    if (isAnalyzing) return;
+    const inp = document.getElementById('queryInput');
+    const query = inp.value.trim();
+    if (!query) return;
+
+    // Reset input
+    inp.value = ''; autoResize(inp);
+    setAnalyzing(true);
+    hideWelcome();
+
+    appendUserBubble(query);
+    const { traceEl, traceBody, spinnerEl } = appendAgentThinking();
+
+    // WS connect
+    ws = new WebSocket(WS_BASE);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ query, context: {} }));
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const ev = JSON.parse(e.data);
+        handleStreamEvent(ev, traceBody, traceEl, spinnerEl);
+      } catch {}
+    };
+
+    ws.onerror = () => {
+      spinnerEl.remove();
+      appendErrorBubble('WebSocket 连接失败，请检查服务是否启动');
+      setAnalyzing(false);
+    };
+
+    ws.onclose = () => {
+      setAnalyzing(false);
+    };
+  }
+
+  function handleStreamEvent(ev, traceBody, traceEl, spinnerEl) {
+    const type = ev.type;
+
+    if (type === 'progress') {
+      updateSpinner(spinnerEl, ev.content);
+    }
+    else if (type === 'thinking') {
+      appendTraceLine(traceBody, 'thinking', '💭', truncate(ev.content, 120));
+    }
+    else if (type === 'tool_call') {
+      const toolName = ev.tool_name || '';
+      appendTraceLine(traceBody, 'tool_call', '🔧', `调用 ${toolName}: ${JSON.stringify(ev.tool_input||{}).slice(0,100)}`);
+      updateSpinner(spinnerEl, `执行 ${toolName}...`);
+    }
+    else if (type === 'tool_result') {
+      appendTraceLine(traceBody, 'tool_result', '✅', truncate(ev.content, 100));
+    }
+    else if (type === 'done') {
+      spinnerEl.remove();
+      const meta = ev.metadata || {};
+      appendReport(ev.content, meta.cost_usd, meta.num_turns, 0, meta.session_id);
+      loadHistory();
+      if (ws) { ws.close(); ws = null; }
+    }
+    else if (type === 'error') {
+      spinnerEl.remove();
+      appendTraceLine(traceBody, 'error', '❌', ev.content);
+      appendErrorBubble(ev.content);
+      if (ws) { ws.close(); ws = null; }
+    }
+    scrollBottom();
+  }
+
+  // ── DOM Helpers ───────────────────────────────────────────────
+  function hideWelcome() {
+    const w = document.getElementById('welcomeScreen');
+    if (w) w.style.display = 'none';
+  }
+
+  function appendUserBubble(text) {
+    const el = document.createElement('div');
+    el.className = 'msg-user';
+    el.innerHTML = `<div class="bubble">${escHtml(text)}</div>`;
+    document.getElementById('chatArea').appendChild(el);
+    scrollBottom();
+  }
+
+  function appendAgentThinking() {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-agent';
+    wrap.innerHTML = `
+      <div class="agent-avatar">🤖</div>
+      <div class="agent-body">
+        <div class="trace-box" id="traceBox_${Date.now()}">
+          <div class="trace-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+            <span>🔄 执行过程</span><span style="margin-left:auto;font-size:10px;color:var(--text3)">点击展开/收起</span>
+          </div>
+          <div class="trace-body" id="traceBody_${Date.now()}"></div>
+        </div>
+        <div class="spinner-wrap" id="spinnerWrap_${Date.now()}">
+          <div class="spinner"></div>
+          <span class="spinner-text" id="spinnerTxt_${Date.now()}">连接中...</span>
+        </div>
+      </div>`;
+    document.getElementById('chatArea').appendChild(wrap);
+
+    const traceEl  = wrap.querySelector('.trace-box');
+    const traceBody= wrap.querySelector('.trace-body');
+    const spinnerEl= wrap.querySelector('.spinner-wrap');
+    scrollBottom();
+    return { traceEl, traceBody, spinnerEl };
+  }
+
+  function appendTraceLine(parent, type, icon, text) {
+    const line = document.createElement('div');
+    line.className = `trace-line ${type}`;
+    line.innerHTML = `<span class="tl-icon">${icon}</span><span>${escHtml(text)}</span>`;
+    parent.appendChild(line);
+    parent.scrollTop = parent.scrollHeight;
+  }
+
+  function updateSpinner(el, text) {
+    const txt = el.querySelector('.spinner-text');
+    if (txt) txt.textContent = text;
+  }
+
+  function appendReport(markdown, costUsd, numTurns, toolCount, sessionId) {
+    const el = document.createElement('div');
+    el.className = 'msg-agent';
+    const costStr  = costUsd  ? `$${parseFloat(costUsd).toFixed(4)}` : '-';
+    const turnsStr = numTurns ? `${numTurns} turns` : '';
+    const sidStr   = sessionId ? `#${sessionId}` : '';
+    el.innerHTML = `
+      <div class="agent-avatar">✅</div>
+      <div class="agent-body" style="flex:1">
+        <div class="report-box">
+          <div class="report-header">
+            <span class="report-title">✅ 分析完成</span>
+            <span class="report-meta">${[sidStr, turnsStr, costStr].filter(Boolean).join(' · ')}</span>
+          </div>
+          <div class="report-content">${renderMarkdown(markdown || '暂无报告内容')}</div>
+          <div style="padding:8px 16px 12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+            <button class="btn-copy" onclick="copyReport(this)">📋 复制报告</button>
+          </div>
+        </div>
+      </div>`;
+    el.querySelector('.btn-copy')._markdown = markdown;
+    document.getElementById('chatArea').appendChild(el);
+    scrollBottom();
+  }
+
+  function appendErrorBubble(msg) {
+    const el = document.createElement('div');
+    el.className = 'msg-agent';
+    el.innerHTML = `
+      <div class="agent-avatar" style="background:var(--red)">❌</div>
+      <div class="agent-body">
+        <div style="background:var(--bg2);border:1px solid var(--red);border-radius:var(--radius);padding:14px 18px;font-size:13px;color:var(--red)">
+          <strong>分析出错：</strong> ${escHtml(msg)}
+        </div>
+      </div>`;
+    document.getElementById('chatArea').appendChild(el);
+    scrollBottom();
+  }
+
+  function copyReport(btn) {
+    const md = btn._markdown || '';
+    navigator.clipboard.writeText(md).then(() => {
+      btn.textContent = '✅ 已复制';
+      setTimeout(() => btn.textContent = '📋 复制报告', 2000);
+    });
+  }
+
+  function setAnalyzing(v) {
+    isAnalyzing = v;
+    document.getElementById('sendBtn').disabled = v;
+    document.getElementById('queryInput').disabled = v;
+  }
+
+  function scrollBottom() {
+    const ca = document.getElementById('chatArea');
+    ca.scrollTop = ca.scrollHeight;
+  }
+
+  // ── Markdown renderer (lightweight) ──────────────────────────
+  function renderMarkdown(md) {
+    if (!md) return '';
+    let html = escHtml(md);
+
+    // code block
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+      `<pre><code>${code.trim()}</code></pre>`);
+    // inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // headings
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+    // bold
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // italic
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // blockquote
+    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+    // table (basic)
+    html = renderTables(html);
+    // hr
+    html = html.replace(/^---+$/gm, '<hr style="border-color:var(--border);margin:12px 0">');
+    // unordered list
+    html = html.replace(/((?:^- .+\n?)+)/gm, (block) =>
+      '<ul>' + block.replace(/^- (.+)$/gm, '<li>$1</li>') + '</ul>');
+    // ordered list
+    html = html.replace(/((?:^\d+\. .+\n?)+)/gm, (block) =>
+      '<ol>' + block.replace(/^\d+\. (.+)$/gm, '<li>$1</li>') + '</ol>');
+    // paragraphs (double newline)
+    html = html.split('\n\n').map(p => {
+      p = p.trim();
+      if (!p) return '';
+      if (/^<(h[1-6]|ul|ol|pre|table|blockquote|hr)/.test(p)) return p;
+      return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+    }).join('\n');
+
+    return html;
+  }
+
+  function renderTables(html) {
+    return html.replace(/((?:^\|.+\|\n?)+)/gm, (block) => {
+      const rows = block.trim().split('\n').filter(r => r.trim());
+      if (rows.length < 2) return block;
+      const headerCells = rows[0].split('|').filter(c => c.trim());
+      const isHeader = row => /^[\s|:-]+$/.test(row);
+      let out = '<table><thead><tr>';
+      headerCells.forEach(c => out += `<th>${c.trim()}</th>`);
+      out += '</tr></thead><tbody>';
+      rows.slice(1).forEach(row => {
+        if (isHeader(row)) return;
+        const cells = row.split('|').filter(c => c !== undefined && !(c === '' && row.trim().startsWith('|')));
+        const dataCells = cells.filter((_, i) => i > 0 || !row.trim().startsWith('|'));
+        out += '<tr>';
+        const parts = row.split('|').slice(1,-1);
+        parts.forEach(c => out += `<td>${c.trim()}</td>`);
+        out += '</tr>';
+      });
+      out += '</tbody></table>';
+      return out;
+    });
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function truncate(s, n) {
+    if (!s) return '';
+    s = String(s).replace(/\n/g,' ');
+    return s.length > n ? s.slice(0, n) + '…' : s;
+  }
+</script>
+</body>
+</html>
