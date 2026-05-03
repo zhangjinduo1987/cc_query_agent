@@ -1,0 +1,13 @@
+# BI Chat 智能问数服务依赖
+fastapi==0.136.1
+uvicorn==0.46.0
+python-dotenv==1.2.2
+anthropic==0.97.0
+mcp==1.27.0
+sqlalchemy==2.0.49
+pymysql==1.1.1
+cryptography==47.0.0
+pydantic==2.11.4
+pydantic-settings==2.14.0
+aiofiles==25.1.0
+websockets==16.0
